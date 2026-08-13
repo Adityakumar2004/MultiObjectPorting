@@ -450,39 +450,70 @@ assets/
 
 ---
 
-## 7. Recommendations and Next Steps ✓ DECIDED
+## 7. Large-Scale Object Training Research ✓ COMPLETED
 
-### 7.1 Stage 2 Implementation Plan (Concrete)
+See `STAGE1_RESEARCH_LARGE_SCALE.md` for comprehensive survey on training policies for 100-2000+ object diversity.
 
-**Phase 1 (Weeks 1–2): Validate Molmo Spaces MJCF Import**
-- Download Molmo Spaces subset (~100 objects)
+**Key Findings Impact on Strategy:**
+
+1. **GraspXL (58 objects → 500k unseen)**: Proves small training set + good representation >>> large dataset
+2. **OpenAI In-Hand Manipulation**: 2000+ objects with sim-to-real; aggressive DR essential
+3. **SAR (100 → 1000 zero-shot)**: Structured representations (synergies) required for scaling past 500 objects
+4. **Bi-DexHands**: 2000+ objects with multi-task RL + multi-tool formulation
+5. **Critical consensus**: Train on primitives (enables per-env shape DR), evaluate on meshes (transfer is robust)
+
+**Failure Modes to Avoid:**
+- From-scratch training at 24k+ envs diverges (needs warm-start from pretrained policy)
+- Training on meshes directly (can't apply shape DR; VRAM explodes)
+- Curriculum learning alone underperforms multi-task RL for 100+ objects
+- Contact solver issues (finger self-collision + light objects = NaN)
+
+---
+
+## 8. Recommendations and Next Steps ✓ DECIDED
+
+### 8.1 Stage 2 Implementation Plan (Revised After Large-Scale Research)
+
+**CRITICAL CHANGE: Focus on primitives + warm-start, not Molmo Spaces meshes initially**
+
+Based on large-scale object training research:
+- Train on procedural primitives (6-12 tool types, shape ranges)
+- Warm-start from reference policy (avoids divergence)
+- Evaluate on Molmo Spaces meshes (transfer is robust per GraspXL)
+- This is the proven pattern: primitives train fast/stable, meshes validate transfer
+
+**Phase 1 (Weeks 1–2): Multi-Tool Primitive RL Training + Warm-Start**
+- Generate 6-12 procedural tool types (box/cylinder handle+head primitives)
+- Per-axis dimension DR (handle length, head size, mass 8-25× variation)
+- Warm-start from reference policy (trained on primitives)
+- Multi-tool RL: single policy on all 12 types simultaneously
+- Train: 6144 envs locally (18-24 hrs), validate convergence
+- Deliverable: Working multi-tool policy + training metrics (success rate, convergence)
+
+**Phase 2 (Weeks 2–3): Molmo Spaces MJCF Validation**
+- Download Molmo Spaces (~100-500 diverse objects)
 - Test MJCF load via mjlab (MjSpec.from_file)
-- Verify collision, contact parameters, per-env randomization
-- Benchmark performance at 1k/10k environments
-- Deliverable: Working Molmo import pipeline + performance report
+- Roll out warm-start policy on Molmo objects (evaluate mesh transfer)
+- Verify collision, contact parameters at 24k environments
+- If transfer succeeds → entire asset pipeline validated
+- Deliverable: Transfer success rate; confirm Molmo is evaluation baseline
 
-**Phase 2 (Weeks 2–4): Asset Organization + Preprocessing Pipeline**
-- Build asset indexing system (CSV/JSONL metadata per object)
-- Implement CoACD convex decomposition wrapper (for eval meshes)
-- For Objaverse: GLB→URDF conversion pipeline (estimated 300–500 GPU hours for 500k)
-- For Google Scanned Objects: OBJ/SDF→URDF conversion
-- Organize assets/ structure (sources/, train/, eval/)
+**Phase 3 (Weeks 3–5): Asset Organization + Preprocessing Pipeline**
+- Build asset indexing (CSV/JSONL per object: source, category, mesh complexity, hull count)
+- Implement CoACD wrapper for mesh decomposition (if needed for eval)
+- For Molmo: validate native MJCF format (minimal preprocessing)
+- For Objaverse: design GLB→MJCF conversion pipeline (estimated 300–500 GPU hours for 500k)
+- For Google Scanned Objects: OBJ/SDF→URDF→MJCF conversion
+- Organize assets/ (sources/, train_primitives/, eval_meshes/)
 - Deliverable: Scalable asset pipeline + metadata index
 
-**Phase 3 (Weeks 3–6): Adapt Training to Multi-Object Sampling**
-- Extend existing simtoolreal pipeline: per-env object type + dimension sampling
-- Implement scale normalization in observation space
-- Add per-env mass/inertia computation
-- Verify training on Molmo Spaces (test on 100 objects first)
-- Benchmark convergence on diverse object set
-- Deliverable: Working multi-object training pipeline
-
-**Phase 4 (Weeks 4–8): Scale and Validate**
-- Add Objaverse-filtered subset (~50k–100k objects)
-- Train policy on increasing object counts (1k → 10k → 50k+)
-- Validate on YCB objects (known baseline)
-- Early Molmo benchmark (optional, language info)
-- Deliverable: Trained policy on 200k+ objects
+**Phase 4 (Weeks 4–8): Scale to Large Object Diversity**
+- Train multi-tool policy on 6144 → 24576 envs (DGX: 3-7 days)
+- Extend per-axis DR to cover additional object diversity (if Molmo diverse enough)
+- Validate on Molmo Spaces subset (if transfer success confirmed)
+- Evaluate on YCB objects (validation baseline)
+- Optional: Early Molmo language benchmark (with privileged info)
+- Deliverable: Trained policy on diverse objects; transfer validation
 
 ### 7.2 Stage 2 Success Metrics
 
