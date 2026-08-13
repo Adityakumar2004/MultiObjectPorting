@@ -1,0 +1,19 @@
+# Default configuration for multi_object_porting
+# System-specific overrides should be in system_name.yaml
+
+# mjlab reference path (will be overridden by environment variable or system config)
+mjlab_path: null
+
+# Output directories (relative to repo root if not absolute)
+output_dir: "./outputs"
+assets_dir: "./assets"
+logs_dir: "./logs"
+
+# Stage 1: Survey configuration
+survey:
+  output_dir: "./docs/stage1_survey"
+
+# Experiment configuration
+experiment:
+  output_dir: "./experiments"
+  log_dir: "./experiments/logs"

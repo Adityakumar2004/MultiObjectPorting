@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "multi-object-porting"
+version = "0.1.0"
+description = "Multi-object asset porting and RL training pipeline"
+requires-python = ">=3.10"
+
+dependencies = [
+    "numpy>=1.21",
+    "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "black>=23.0",
+]
+
+# mjlab is NOT a dependency; it's an external package you reference via environment variable
+# See README.md and config/SYSTEM_SETUP.md for how to point to it
+
+[tool.setuptools]
+packages = ["multi_object_porting"]
+
+[tool.black]
+line-length = 100
