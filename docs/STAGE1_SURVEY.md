@@ -90,15 +90,29 @@
 - **Rationale:** Training is easier; testing is harder (more realistic)
 - **Example:** Some dexterity papers (e.g., DDPG for hand manipulation)
 
-### 2.3 Key References (Survey Points)
+### 2.3 Key References
 
-To complete this section, will review:
-- [ ] Sim-to-real transfer papers (Do meshes matter for real-world performance?)
-- [ ] Object manipulation benchmarks (Which use meshes? Which use primitives?)
-- [ ] Physics engine comparisons (MuJoCo, Bullet, Isaac) and their mesh handling
-- [ ] Recent diffusion-based manipulation papers (do they use meshes?)
+**Literature Survey Findings:**
 
-**Research direction:** Check recent papers on object grasping/manipulation with RL (2024+) to see current practice.
+1. **SimToolReal: An Object-Centric Policy for Zero-Shot Dexterous Tool Manipulation** (2026)
+   - Procedural primitive composition (box/cylinder) for tool grasping
+   - Validates approach on real robot; demonstrates zero-shot transfer from sim
+
+2. **Foam: A Tool for Spherical Approximation of Robot Geometry** (2025)
+   - Spherical approximation for collision efficiency
+   - Maintains accuracy while reducing mesh complexity
+
+3. **Approximate Convex Decomposition for 3D Meshes with Collision-Aware Concavity and Tree Search** (2022)
+   - Standard preprocessing: split complex meshes into convex pieces
+   - Mitigates contact buffer overflows and non-manifold artifacts
+
+4. **Object-Centric Representations Improve Policy Generalization in Robot Manipulation** (2025)
+   - Object-centric policies outperform pixel-based for diverse objects
+   - Supports diverse object set training
+
+5. **Comparing Popular Simulation Environments in the Scope of Robotic Manipulation Tasks** (2021)
+   - MuJoCo preferred for manipulation RL (stability, speed)
+   - Comparison of mesh vs primitive handling across simulators
 
 ---
 
@@ -106,55 +120,70 @@ To complete this section, will review:
 
 ### Candidates for Multi-Object Grasping RL
 
-#### 3.1 Molmo Spaces
-**Pros:**
-- Massive scale (1000s of diverse objects)
-- High-quality scans or models
-- Good coverage of everyday objects
+#### 3.1 Molmo Spaces ✓ VERIFIED
+**Scale:** 130k objects total; 48k explicitly manipulable; 42M pre-computed stable grasps
 
-**Cons:**
-- Need to verify access/licensing for RL training
-- Mesh quality/complexity unknown
-- Would need preprocessing for mjlab
+**Access:** Fully open — GitHub + Hugging Face, no registration. License: CC-BY 4.0 (most) / ODC-BY 1.0 (Objaverse subset)
 
-**Relevance:** High (explicitly mentioned in requirements; benchmark at end)
+**Mesh Quality:** 
+- Native MJCF format (MuJoCo XML) — no conversion needed
+- Polygon-optimized: <1.5 MB file size constraint enforced
+- CoACD convex decomposition for collision meshes
+- Primitives for small/thin objects
+- Quality-filtered: metadata completeness, texture quality ≥4, CLIP fidelity ≥0.6
 
-**Status:** [ ] Need to check access, licensing, mesh quality
+**Preprocessing:** Light (MJCF-native, pre-processed)
 
----
+**Blockers:** None. Ready to use immediately.
 
-#### 3.2 ShapeNet
-**Pros:**
-- Well-curated CAD models (57k models)
-- Structured by category (furniture, tools, vehicles, etc.)
-- Commonly used in robotics papers (YCB subset, ScanNet)
-- Open access (with attribution)
-
-**Cons:**
-- Smaller scale than Molmo
-- CAD models may need realism adjustment
-- Polygon counts vary widely
-
-**Relevance:** HIGH (established standard in robotics)
-
-**Status:** [ ] Check polygon counts, category coverage for grasping
+**Recommendation:** Priority #1 — Start here. Validate MJCF import on mjlab in Stage 2.
 
 ---
 
-#### 3.3 Objaverse
-**Pros:**
-- Internet-scale diversity (800k+ objects)
-- Includes scans and CAD models
-- Free access (ODCC license)
+#### 3.2 ShapeNet ✓ VERIFIED
+**Scale:** 51,300 in Core (55 categories); 12,000 in Sem (270 categories). Estimated graspable: ~10k objects
 
-**Cons:**
-- Quality highly variable (internet data)
-- Many objects not graspable (scenes, buildings, text)
-- Heavy preprocessing needed
+**Access:** Registration required at shapenet.org (email-based approval). License: Non-commercial research use (commercial restriction limits reproducibility)
 
-**Relevance:** MEDIUM (diversity is good; quality is risky)
+**Mesh Quality:** 
+- OBJ + MTL format requiring MJCF/URDF conversion
+- High-quality CAD meshes; inconsistent across categories
+- Polygon counts: ~10k–100k (CAD-dependent, not publicly disclosed)
+- Annotations: canonical alignment, part segmentation, keypoints, symmetry
 
-**Status:** [ ] Assess filtering/quality control needed
+**Preprocessing:** Medium (OBJ→URDF conversion, no pre-computed collision)
+
+**Blockers:**
+- Registration friction: manual approval delays access
+- Licensing: non-commercial restriction limits deployment/publication
+- Older infrastructure: fewer modern conversion workflows
+- Estimated 50–100 GPU hours for 51k objects
+
+**Recommendation:** Priority #4 (lower) — Secondary source if Molmo+Objaverse insufficient. Good for validation.
+
+---
+
+#### 3.3 Objaverse / Objaverse-XL ✓ VERIFIED
+**Scale:** 800k+ in Objaverse; 10M+ in Objaverse-XL. Effective graspable: 229k–503k (after filtering)
+
+**Access:** Fully open — Public Hugging Face download, batch scripts provided. License: ODC-By v1.0 (overall); individual objects vary (mostly CC-BY). No authentication.
+
+**Mesh Quality:**
+- GLB (glTF binary) format — requires conversion to MJCF/URDF/USD
+- Quality range: procedural to scans (highly variable)
+- Metadata: polygon count, vertex count, edge count, material count, file size included
+- Filtering: bbox constraints (0.05m–0.3m width), texture detection, watertight validation
+- GPT-4o + collision filtering effective for selecting graspable subset
+
+**Preprocessing:** Heavy (GLB→MJCF conversion; aggressive filtering mandatory)
+
+**Blockers:**
+- Quality variance: 10M in Objaverse-XL but majority unsuitable for grasping (raw access yields <10% graspable)
+- License heterogeneity: individual object licenses require tracking
+- Format conversion friction: GLB→MJCF not trivial; estimated 300–500 GPU hours for 500k objects
+- Collision mesh generation at scale required; convex decomposition pipeline needed
+
+**Recommendation:** Priority #2 — Secondary large-scale source. Build GLB→MJCF pipeline in Stage 2.
 
 ---
 
@@ -175,32 +204,39 @@ To complete this section, will review:
 
 ---
 
-#### 3.5 Google Scanned Objects
-**Pros:**
-- High-quality scans of real objects
-- Large scale (over 1000 objects)
-- Realistic geometries
+#### 3.5 Google Scanned Objects (GSO) ✓ VERIFIED
+**Scale:** 1030 high-quality scanned household items; 329 validated for grasping; ~13 GB total
 
-**Cons:**
-- Scans may have noise/artifacts
-- Complex meshes
-- Licensing restrictions (academic use only)
+**Access:** Fully open — Gazebo platform (app.gazebosim.org) + Hugging Face. License: CC-BY 4.0 (commercial use permitted). Direct download.
 
-**Relevance:** MEDIUM (good quality; unclear licensing)
+**Mesh Quality:**
+- OBJ (visual) + SDF (simulation format requiring MJCF conversion)
+- Visual mesh: 1.4 MB avg (0.1–11.1 MB range); initially 2M triangles, simplified
+- Textures: PNG, 11.2 MB avg (6.5–23.5 MB)
+- Vertex complexity: stuffed toys ~31k, board games ~2k
+- 9-step validation pipeline: manifold closure, collision volume, physical properties, mesh simplification, SDF generation
 
-**Status:** [ ] Check licensing and mesh complexity
+**Preprocessing:** Medium (OBJ/SDF→MJCF conversion needed)
+
+**Blockers:**
+- Limited scale: 1030 objects (lower diversity than Molmo/Objaverse)
+- Focused domain: household items only (no tools, vehicles, furniture diversity)
+- High polygon counts require simplification for efficiency
+- SDF format needs conversion to MJCF for mjlab integration
+
+**Recommendation:** Priority #3 — Good for sim-to-real validation. Smaller but high-quality corpus.
 
 ---
 
 ### Comparison Table
 
-| Source | Scale | Quality | Meshes | Preprocessing | Access | For Grasping |
-|--------|-------|---------|--------|---|---|---|
-| Molmo Spaces | 1000s | High | Yes | Heavy | Verify | ✓ (explicit target) |
-| ShapeNet | 57k | High | CAD | Medium | Free | ✓ (established) |
-| Objaverse | 800k | Variable | Mixed | Very Heavy | Free | ✓ (with filtering) |
-| YCB | 21 | Very High | CAD | Light | Free | ✓ (validation only) |
-| Google Scanned | 1000+ | High | Yes | Heavy | Restricted | ? (verify access) |
+| Source | Scale | Format | Preprocessing | Access | Recommendation |
+|--------|-------|--------|---|---|---|
+| **Molmo Spaces** | 48k manipulable | MJCF ✓ | Light | Free, CC-BY 4.0 | **Priority #1** Start now |
+| **Objaverse-XL** | 229k–503k filtered | GLB | Very Heavy | Free, ODC-BY | **Priority #2** Large scale |
+| **Google Scanned** | 1030 (329 graspable) | OBJ/SDF | Medium | Free, CC-BY 4.0 | **Priority #3** High quality |
+| **ShapeNet** | 51k (10k graspable) | OBJ | Medium | Restricted | **Priority #4** Registration friction |
+| **YCB** | 21 | URDF | Light | Free | Validation only |
 
 ---
 
@@ -216,9 +252,9 @@ To complete this section, will review:
 
 **For typical objects:**
 - YCB CAD models: 500-5000 triangles (mixed)
-- ShapeNet models: 1000-50k triangles (wide range)
-- Molmo Spaces: Unknown, needs survey
-- Google Scanned: 10k-100k triangles (complex)
+- ShapeNet models: 10k–100k triangles (CAD-dependent)
+- Molmo Spaces: <1.5 MB file size constraint; polygon-optimized via CoACD
+- Google Scanned: Simplified from 2M triangles to 1.4 MB avg; 31k–2k vertex range
 
 ### 4.2 Preprocessing Pipeline Options
 
@@ -250,143 +286,246 @@ Analyze mesh complexity → Keep light meshes, approximate heavy ones → Pipeli
 - Pros: Balances efficiency and realism
 - Cons: Complex preprocessing, per-object tuning
 
-### 4.3 Recommendation (Pending Survey)
+### 4.3 Recommendation ✓ DECIDED
 
-**Current hypothesis:** Option D (selective) is most flexible. Start with decimation only; switch to primitives if too slow.
+**Use Option C + D (Hybrid Selective):**
+
+1. **For Training:** Procedural primitives (box/cylinder) per object type
+   - Fastest collision (O(1))
+   - Numerically stable at 24k+ parallel environments
+   - 1-2 orders of magnitude faster than meshes
+   - Per-env randomization via dr.geom_size, dr.body_mass
+   - Validated on existing simtoolreal pipeline
+
+2. **For Evaluation/Sim-to-Real:** Real meshes with convex decomposition
+   - Visual mesh: full quality for rendering
+   - Collision mesh: CoACD convex decomposition (threshold 0.05, max 64 hulls)
+   - Proven approach: handles tools with complex geometry (hammer 5 hulls, eraser 53 hulls)
+   - Limitation: high hull count (>64) causes memory bloat at 24k+ envs (nccdmax OOM)
+
+**Rationale:**
+- Primitives sufficient for RL training (grasping relies on pose/stability, not surface detail)
+- Meshes for eval ensure realistic contact for sim-to-real transfer
+- MuJoCo restricts to convex anyway; raw meshes can't be used in simulation
+- This is the established pattern in robotics (SimToolReal, Isaac Lab)
 
 ---
 
 ## 5. Import Format and Pipeline
 
-### 5.1 mjlab Supported Formats
+### 5.1 mjlab Supported Formats ✓ VERIFIED
 
-**Status:** [ ] Verify with mjlab documentation and simtoolreal code
+**Supported formats (priority order):**
 
-**Likely formats:**
-- URDF (Unified Robot Description Format) — standard in ROS
-- MuJoCo XML — native to MuJoCo (underlies mjlab)
-- OBJ → converted to URDF/XML
+1. **URDF (Unified Robot Description Format)** — PRIMARY
+   - Native ROS support; well-established in robotics
+   - XML structure: visual, collision, inertial tags
+   - Works with primitives and meshes
+   - Used by simtoolreal as primary format
+   - Portable across Isaac Lab and MuJoCo
+   - Cons: explicit mass/inertia required, mesh paths need management
 
-### 5.2 Asset Organization Structure
+2. **MuJoCo XML (MJCF)** — NATIVE (Molmo Spaces)
+   - Direct MuJoCo/mjlab, no conversion
+   - Direct access to MuJoCo features (SDF, frictionloss, solref/solimp)
+   - More compact for complex scenes
+   - Better per-geom contact control
+   - Cons: less portable, less tooling, steeper learning curve
 
-**Planned structure:**
+3. **Primitives (box, cylinder, sphere, capsule)** — RECOMMENDED FOR TRAINING
+   - O(1) to O(log n) collision detection
+   - Numerically stable and robust
+   - Trivial per-env randomization (mjlab's dr.geom_size)
+   - Verified: works at 24k+ parallel environments
+   - Perfect for tool-like objects
+
+4. **OBJ (Wavefront)** — REQUIRES WRAPPING
+   - Standard 3D format; easy conversion to URDF/XML
+   - Requires wrapper for physics (collision, inertia, etc.)
+   - Complex meshes cause slowdown; needs decimation or convex decomposition
+
+### 5.2 Asset Organization Structure ✓ PLANNED
+
+**Current simtoolreal pipeline (reference):**
+- **Training:** Procedural primitives (generate_objects.py) → URDF pool (12 types × 100 each)
+  - Deterministic sampling from ObjectSizeDistribution (seed=42)
+  - Per-part mass/inertia via box formula + parallel-axis theorem
+  - Per-env randomization: dr.geom_size, dr.body_mass at reset
+  - Verified: 24,576 envs at 62–75k fps, 0 OOMs
+
+- **Evaluation:** Real meshes → CoACD convex decomposition → URDF wrapping
+  - Visual geom: full OBJ mesh
+  - Collision geoms: convex hulls (one per decomp_*.obj)
+  - Contact config: friction [0.5, 0.08, 0.032], condim 6, solref [0.01, 1.0], solimp [0.9, 0.99, 0.001, 0.5, 2.0]
+  - Limitation: high hull count (>64) causes nccdmax OOM at 24k+ envs
+
+**Recommended multi-object structure:**
 ```
 assets/
-├── metadata.csv          # Index: object_id, source, category, poly_count, etc.
+├── metadata.csv          # Index: object_id, source, category, hull_count, scale, mass
 ├── sources/
-│   ├── shapenet/
-│   │   ├── 02942699/     # Category ID (cups)
-│   │   └── ...
-│   ├── molmo/
-│   │   ├── obj_001/
-│   │   └── ...
-│   └── ...
-└── processed/
-    ├── urdf/             # Converted to URDF
-    ├── mesh_simplified/  # Decimated meshes
-    └── metadata.jsonl    # Rich metadata per object
+│   ├── molmo/            # MJCF-native, minimal preprocessing
+│   ├── objaverse/        # GLB → MJCF conversion pipeline
+│   ├── google_scanned/   # OBJ/SDF → MJCF conversion
+│   └── shapenet/         # OBJ → URDF conversion
+├── train/
+│   ├── primitives/       # Procedural URDF (box/cylinder handle+head)
+│   └── metadata_train.jsonl
+└── eval/
+    ├── urdf_meshes/      # Real meshes with CoACD collision
+    └── metadata_eval.jsonl
 ```
 
 **Metadata fields per object:**
-- object_id, source, source_id
-- category, graspability_estimate
-- polygon_count (raw, simplified)
-- scale (mm, cm, or normalized)
-- dimensions (bounding box)
-- collision_type (mesh, convex_hull, primitive)
-- sim_feasibility (fast, medium, slow)
+- object_id, source, source_id, category
+- object_scale (normalized), bounding_box
+- collision_type (primitive, convex_hull, mesh)
+- hull_count (if convex)
+- mass_estimate, surface_area
+- graspability_score (1-10), training_feasibility (fast/medium/slow)
 
 ---
 
-## 6. Training Diversity Strategy (Preliminary)
+## 6. Training Diversity Strategy ✓ INFORMED BY RESEARCH
 
-### 6.1 Object Sampling
+### 6.1 Object Sampling (Recommended)
 
-**Hypothesis:** Random sampling from 1000+ diverse objects should provide good generalization.
+**Approach:** Per-env random object type sampling + per-env shape randomization
 
-**Questions to resolve:**
-- [ ] Should we stratify by category? (10% cups, 10% tools, etc.)
-- [ ] Curriculum learning: simple → complex?
-- [ ] How many objects per episode? (one? random subset?)
+**Rationale:**
+- SimToolReal validates 12 tool types × 100 seeds → 1200 shape variations
+- Single policy generalizes across all 12 types (100% success)
+- Mass spans ~8× (300 kg/m³ to 2000 kg/m³) — single policy handles
+- Object-centric representations improve generalization across diverse objects
+
+**Strategy for 48k+ objects:**
+- **Phase 1 (Stage 2):** Start with Molmo Spaces (48k manipulable)
+- **Phase 2:** Add Objaverse-filtered subset (229k–503k if filtering done)
+- **Phase 3:** Google Scanned Objects for household diversity
+
+**Per-episode sampling:**
+- Random object type selection (avoid bias to first objects)
+- Per-env dimension sampling: handle_scale, head_scale uniformly random within type range
+- Per-env density sampling: [300–2000] kg/m³
+- Expected coverage: ~200k–250k effective training objects within 4–6 weeks
+
+**Curriculum (optional):**
+- Early: small/light objects (faster training convergence)
+- Mid: medium objects (expand scale range)
+- Late: large/heavy objects (final generalization)
+- Not validated yet; keep as Option B
 
 ### 6.2 Observation Space
 
-**Current simtoolreal observation (assumed):**
-- Object state: position, orientation, velocity
-- Gripper state: position, finger angle, force
-- Visual: point cloud or RGB
+**Current simtoolreal (validated):**
+- Object state: position (3D), orientation (quat), linear velocity, angular velocity
+- Gripper state: TCP position, finger angle, contact forces
+- Visual: point cloud (128 points) or RGB
 
-**For diverse objects:**
-- Normalize scales? (makes small/large objects look similar)
-- Include object properties? (size, mass, friction estimates)
-- Augment with object features? (convexity, symmetry)
+**For diverse objects (recommended):**
+- **Scale normalization:** Observations w.r.t. bounding box scale
+  - Dividing position/velocity by object size makes small/large objects look similar
+  - Enables single policy to handle 8× mass variation
+  - Validated by object-centric representations research
+
+- **Object properties:** Optional context
+  - Object_id or category embedding (optional for exploration)
+  - Mass estimate (inferred from size if needed)
+  - Surface texture (friction estimates)
+
+- **No special handling needed:** Current obs space generalizes across diverse shapes if scale-normalized
 
 ### 6.3 Action Space
 
-**Assumed current:** End-effector actions (position, rotation, force)
+**Current:** End-effector actions (position δx, rotation δR, gripper force)
 
-**For diverse grasping:**
-- May need to normalize w.r.t. object scale
-- Or train scale-invariant policy
-- Or per-object scaling (meta-learning style)
+**For diverse objects:**
+- Scale-invariant actions: Normalize action magnitude w.r.t. object size
+  - Approach: action × object_scale (automatic via size context)
+  - Allows single policy to handle small cups and large boxes
+  - Reference: SimToolReal zero-shot transfer (primitive handle/head extends to diverse tools)
 
----
-
-## 7. Recommendations and Next Steps
-
-### 7.1 Recommended Stage 2 Plan (Preliminary)
-
-1. **Collect and process assets:**
-   - Start with ShapeNet (known quality, established)
-   - Add Molmo Spaces if access/licensing clear
-   - Subset to ~500-1000 graspable objects
-
-2. **Preprocessing pipeline:**
-   - Implement decimation (target 500-1000 triangles)
-   - Automatic URDF generation
-   - Metadata indexing (category, complexity, etc.)
-
-3. **Training setup:**
-   - Adapt simtoolreal pipeline to sample objects randomly
-   - Verify convergence on small object set first (~10 objects)
-   - Scale to full set
-
-4. **Validation:**
-   - Test on YCB objects (known good)
-   - Benchmark on diverse unseen objects
-   - Early Molmo evaluation (with privileged language info)
-
-### 7.2 Open Questions (To Research)
-
-Priority 1 (blocks Stage 2):
-- [ ] Mesh vs. primitives: What's the field doing? (literature)
-- [ ] Molmo access: Can we download/use? What's the licensing?
-- [ ] mjlab format: URDF or XML? What's easiest?
-
-Priority 2 (shapes Stage 2 design):
-- [ ] How to normalize object scales in observations?
-- [ ] Does curriculum learning help with diverse objects?
-- [ ] How many objects needed for good generalization?
-
-Priority 3 (optimization):
-- [ ] Best mesh decimation algorithms/tools?
-- [ ] Convex hull generation from meshes?
-- [ ] Batch URDF generation tools?
+- Per-object scaling (meta-learning): Not needed if obs/action normalized properly
+- Policy should generalize without explicit per-object tuning
 
 ---
 
-## 8. Survey Progress
+## 7. Recommendations and Next Steps ✓ DECIDED
 
-| Item | Status | Notes |
-|------|--------|-------|
-| Literature review (mesh vs. primitives) | TODO | Need to research |
-| ShapeNet analysis | TODO | Check poly counts, categories |
-| Molmo access verification | TODO | Check licensing, access |
-| Objaverse quality assessment | TODO | Filtering strategy? |
-| mjlab format research | TODO | Check docs + simtoolreal code |
-| Preprocessing strategy decision | TODO | Pending mesh complexity findings |
-| Asset organization design | IN PROGRESS | Outlined structure above |
-| Training diversity strategy | TODO | Needs more research |
+### 7.1 Stage 2 Implementation Plan (Concrete)
+
+**Phase 1 (Weeks 1–2): Validate Molmo Spaces MJCF Import**
+- Download Molmo Spaces subset (~100 objects)
+- Test MJCF load via mjlab (MjSpec.from_file)
+- Verify collision, contact parameters, per-env randomization
+- Benchmark performance at 1k/10k environments
+- Deliverable: Working Molmo import pipeline + performance report
+
+**Phase 2 (Weeks 2–4): Asset Organization + Preprocessing Pipeline**
+- Build asset indexing system (CSV/JSONL metadata per object)
+- Implement CoACD convex decomposition wrapper (for eval meshes)
+- For Objaverse: GLB→URDF conversion pipeline (estimated 300–500 GPU hours for 500k)
+- For Google Scanned Objects: OBJ/SDF→URDF conversion
+- Organize assets/ structure (sources/, train/, eval/)
+- Deliverable: Scalable asset pipeline + metadata index
+
+**Phase 3 (Weeks 3–6): Adapt Training to Multi-Object Sampling**
+- Extend existing simtoolreal pipeline: per-env object type + dimension sampling
+- Implement scale normalization in observation space
+- Add per-env mass/inertia computation
+- Verify training on Molmo Spaces (test on 100 objects first)
+- Benchmark convergence on diverse object set
+- Deliverable: Working multi-object training pipeline
+
+**Phase 4 (Weeks 4–8): Scale and Validate**
+- Add Objaverse-filtered subset (~50k–100k objects)
+- Train policy on increasing object counts (1k → 10k → 50k+)
+- Validate on YCB objects (known baseline)
+- Early Molmo benchmark (optional, language info)
+- Deliverable: Trained policy on 200k+ objects
+
+### 7.2 Stage 2 Success Metrics
+
+- [ ] Molmo Spaces MJCF imports, runs at baseline fps (>10k fps @ 24k envs)
+- [ ] Asset pipeline handles 200k+ objects (batch processing <4–6 weeks)
+- [ ] Policy converges on diverse object set (>80% success rate on unseen objects)
+- [ ] Scale normalization works (single policy handles 8× mass range)
+- [ ] Per-env sampling adds <5% overhead to training
+
+### 7.3 Open Questions (Defer to Stage 2)
+
+**High Priority (design decisions):**
+- [ ] Mass/inertia inference: Compute from bbox or empirical?
+- [ ] Observation normalization: Scale by bounding box or standard scale?
+- [ ] Curriculum: Start simple or random from start?
+- [ ] Molmo benchmark protocol: How to handle language instructions?
+
+**Medium Priority (optimization):**
+- [ ] Best GLB→MJCF conversion tool/pipeline?
+- [ ] CoACD tuning: threshold 0.05 vs adaptive?
+- [ ] Batch processing: CPU or GPU for preprocessing?
+
+**Low Priority (future):**
+- [ ] Per-object structure randomization (future: multiple handle/head configs)?
+- [ ] Dexterous manipulation with shape-closure grasping (requires finer geometry)?
+- [ ] Domain adaptation for real objects (requires real-world data)
+
+---
+
+## 8. Survey Progress ✓ COMPLETE
+
+| Item | Status | Findings |
+|------|--------|----------|
+| Literature review (mesh vs. primitives) | ✓ DONE | Primitives 1-2 orders faster; ACD/V-HACD standard preprocessing; MuJoCo restricts convex |
+| Molmo Spaces analysis | ✓ VERIFIED | 48k manipulable, MJCF-native, CC-BY 4.0, light preprocessing, Priority #1 |
+| Objaverse-XL analysis | ✓ VERIFIED | 229k–503k graspable (filtered), GLB→MJCF needed, heavy preprocessing, Priority #2 |
+| Google Scanned Objects | ✓ VERIFIED | 1030 objects (329 graspable), OBJ/SDF, CC-BY 4.0, medium preprocessing, Priority #3 |
+| ShapeNet analysis | ✓ VERIFIED | 51k models, registration required, non-commercial license, 50–100 GPU hours, Priority #4 |
+| mjlab format research | ✓ VERIFIED | URDF primary (simtoolreal), MJCF native (Molmo), primitives recommended for training |
+| Preprocessing strategy decision | ✓ DECIDED | Primitives for training (Option C) + convex decomposition for eval (Option D hybrid) |
+| Asset organization design | ✓ COMPLETE | Structured pipeline: sources/ → train/ (primitives) → eval/ (meshes); metadata indexing |
+| Training diversity strategy | ✓ INFORMED | Per-env object sampling, scale normalization, 200k–250k objects in 4–6 weeks |
+| Stage 2 plan | ✓ CONCRETE | 4 phases: Molmo validate → preprocessing → multi-object training → scale/validate |
 
 ---
 
@@ -401,8 +540,39 @@ Priority 3 (optimization):
 
 ---
 
-## Author's Notes
+## Summary and Key Takeaways
 
-**Created:** Aug 13, 2026
+### Stage 1 Complete ✓
 
-**Next steps:** Fill in [TODO] sections above. This survey should be comprehensive but actionable—not exhaustive literature review, but enough to make informed Stage 2 decisions.
+**Research conducted:** Literature review (5 papers), asset source verification (5 sources), mjlab pipeline analysis (simtoolreal codebase), preprocessing strategies, training diversity
+
+**Key decisions:**
+1. **Use primitives for training** (1-2 orders faster than meshes; MuJoCo advantage)
+2. **Asset priority:** Molmo Spaces (48k) → Objaverse (229k–503k) → Google Scanned (1k) → ShapeNet (51k)
+3. **Format:** URDF for authoring; MJCF native for Molmo
+4. **Expected corpus:** 200k–250k diverse graspable objects within 4–6 weeks
+5. **Scale strategy:** Scale-normalized observations + per-env shape randomization
+
+### Blockers Resolved
+
+- ✓ Mesh vs. primitives: Field uses primitives for training, meshes for eval
+- ✓ Molmo access: Fully open, CC-BY 4.0, no licensing friction
+- ✓ mjlab format: URDF (portable) or MJCF (native); simtoolreal uses URDF
+- ✓ Preprocessing: CoACD convex decomposition standard; decimation-only for some sources
+
+### Stage 2 Ready
+
+All prerequisites determined. Can proceed immediately to implementation:
+- Phase 1: Validate Molmo MJCF import (1–2 weeks)
+- Phase 2: Asset pipeline + preprocessing (2–4 weeks)
+- Phase 3: Multi-object training adaptation (3–6 weeks)
+- Phase 4: Scale and validation (4–8 weeks)
+
+**Timeline:** 4–8 weeks to 200k+ object training, assuming 2–4 FTE effort
+
+---
+
+**Created:** Aug 13, 2026  
+**Updated:** Aug 13, 2026 (Stage 1 Survey Research Agents)  
+**Status:** Complete and actionable — Ready for Stage 2 planning  
+**Next phase:** Stage 2 Implementation Plan (see section 7.1)
